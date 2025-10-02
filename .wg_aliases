@@ -1,0 +1,62 @@
+#!/usr/bin/env bash
+
+# WireGuard Quick Management Aliases
+# Source this file in your ~/.bashrc or ~/.zshrc
+
+# Basic operations
+alias wgup='sudo wg-quick up wg0'
+alias wgdown='sudo wg-quick down wg0'
+alias wgrestart='sudo wg-quick down wg0 && sleep 1 && sudo wg-quick up wg0'
+
+# Status and monitoring
+alias wgstatus='sudo wg show'
+alias wglog='sudo journalctl -u wg-quick@wg0 -f'
+alias wgping='ping 10.0.0.1'
+
+# Information
+wginfo() {
+    echo "=== WireGuard Status ==="
+    if sudo wg show wg0 &>/dev/null; then
+        echo "Status: 🟢 UP"
+        sudo wg show wg0
+        echo ""
+        echo "=== Network Info ==="
+        echo "Tunnel IP: $(ip addr show wg0 2>/dev/null | grep 'inet ' | awk '{print $2}')"
+        echo "Public IP: $(curl -s -4 ifconfig.me)"
+        echo "Location: $(curl -s ipinfo.io/city 2>/dev/null), $(curl -s ipinfo.io/country 2>/dev/null)"
+    else
+        echo "Status: 🔴 DOWN"
+    fi
+}
+
+# Quick test
+wgtest() {
+    echo "Testing VPN connection..."
+    if ping -c 3 10.0.0.1 &>/dev/null; then
+        echo "✅ Can reach VPN gateway"
+    else
+        echo "❌ Cannot reach VPN gateway"
+    fi
+    
+    echo "Your public IP: $(curl -s -4 ifconfig.me)"
+}
+
+# Safe restart with fallback
+wgsafe() {
+    echo "Safe restart with 5-minute fallback..."
+    (sleep 300 && sudo wg-quick down wg0 && sudo wg-quick up wg0) &
+    local fallback_pid=$!
+    echo "Fallback PID: $fallback_pid (will auto-recover in 5 min if stuck)"
+    
+    sudo wg-quick down wg0
+    sleep 2
+    sudo wg-quick up wg0
+    
+    if sudo wg show wg0 &>/dev/null; then
+        echo "✅ Restart successful, killing fallback"
+        kill $fallback_pid 2>/dev/null
+    else
+        echo "⚠️  Restart might have failed, fallback will trigger in 5 min"
+    fi
+}
+
